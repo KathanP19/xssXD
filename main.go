@@ -3,12 +3,12 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/valyala/fasthttp"
 )
 
 func main() {
@@ -21,7 +21,7 @@ func main() {
 		}
 		close(inputs)
 	}()
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 64; i++ {
 		wg.Add(1)
 		go workers(inputs, &wg)
 	}
@@ -53,14 +53,24 @@ func checkErr(e error) {
 	if e != nil {
 		fmt.Println(e)
 	}
+
 }
 
 func checkxss(s string) bool {
-	resp, err := http.Get(s)
-	checkErr(err)
-	body, err := ioutil.ReadAll(resp.Body)
-	checkErr(err)
-	return strings.Contains(string(body), "<'\">")
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)   // <- do not forget to release
+	defer fasthttp.ReleaseResponse(resp) // <- do not forget to release
+
+	req.SetRequestURI(s)
+
+	fasthttp.Do(req, resp)
+
+	bodyBytes := resp.Body()
+	if strings.Contains(string(bodyBytes), "<'\">") {
+		return true
+	}
+	return false
 }
 
 func workers(cha chan string, wg *sync.WaitGroup) {
