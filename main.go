@@ -21,7 +21,7 @@ func main() {
 		}
 		close(inputs)
 	}()
-	for i := 0; i < 64; i++ {
+	for i := 0; i < 100; i++ {
 		wg.Add(1)
 		go workers(inputs, &wg)
 	}
@@ -30,23 +30,28 @@ func main() {
 
 func buildurl(s string) {
 	ur, err := url.Parse(s)
-	checkErr(err)
+	if err != nil {
+		return
+	}
 	x := ur.Query()
+	if len(x) == 0 {
+		return
+	}
 	baseurl := ur.Scheme + "://" + ur.Host + ur.Path + "?"
 	params := url.Values{}
 	for i := range x {
-		params.Add(i, "<svg/onload=alert()>")
+		params.Add(i, "<'\">")
 	}
 	finalurl := baseurl + params.Encode()
+	//fmt.Println("Testing", s)
 	if checkxss(finalurl) {
-		fmt.Println(s, "is vulnerable to xss")
+		fmt.Println(s, "might be vulnerable to xss")
 	}
 }
 
 func checkErr(e error) {
 	if e != nil {
 		fmt.Println(e)
-		os.Exit(0)
 	}
 }
 
@@ -55,7 +60,7 @@ func checkxss(s string) bool {
 	checkErr(err)
 	body, err := ioutil.ReadAll(resp.Body)
 	checkErr(err)
-	return strings.Contains(string(body), "<svg/onload=alert()>")
+	return strings.Contains(string(body), "<'\">")
 }
 
 func workers(cha chan string, wg *sync.WaitGroup) {
